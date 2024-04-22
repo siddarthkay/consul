@@ -22,7 +22,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/armon/go-metrics"
 	"github.com/armon/go-metrics/prometheus"
 	"github.com/rboyer/safeio"
 	"golang.org/x/net/http2"
@@ -30,9 +29,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/hashicorp/go-connlimit"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-memdb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcp-scada-provider/capability"
 	"github.com/hashicorp/raft"
@@ -4234,6 +4230,11 @@ func (a *Agent) DisableServiceMaintenance(serviceID structs.ServiceID) error {
 		return nil
 	}
 
+	// Update check to trigger an event for watchers
+	a.State.UpdateCheck(checkID, api.HealthPassing, "")
+	// Make sure state change is propagated
+	a.State.SyncChanges()
+
 	// Deregister the maintenance check
 	a.RemoveCheck(checkID, true)
 	a.logger.Info("Service left maintenance mode", "service", serviceID.String())
@@ -4271,6 +4272,10 @@ func (a *Agent) DisableNodeMaintenance() {
 	if a.State.Check(structs.NodeMaintCheckID) == nil {
 		return
 	}
+	// Update check to trigger an event for watchers
+	a.State.UpdateCheck(structs.NodeMaintCheckID, api.HealthPassing, "")
+	// Make sure state change is propagated
+	a.State.SyncChanges()
 	a.RemoveCheck(structs.NodeMaintCheckID, true)
 	a.logger.Info("Node left maintenance mode")
 }
